@@ -369,7 +369,8 @@ h2 { font-size: 25px; letter-spacing: -0.02em; margin: 0 0 6px; font-weight: 800
       </div>
       <div class="score-hero-text">
         <h2 style="margin-bottom:4px">Итоговый балл</h2>
-        <p>Оценка по обоим заданиям сразу, по официальной методике VIAA</p>
+        <p style="margin-bottom:6px">Оценка по обоим заданиям сразу, по официальной методике VIAA</p>
+        <p style="font-size:20px; font-weight:800; color:var(--cyan)" id="scorePercentText"></p>
       </div>
     </div>
     <div class="too-short-note hidden" id="tooShortTask1Note"></div>
@@ -750,7 +751,7 @@ $("#task2DoneBtn").addEventListener("click", function() {
   submitForGrading();
 });
 
-/* ================= Комплексная оцеhнка ================= */
+/* ================= Комплексная оценка ================= */
 async function submitForGrading() {
   if (!task1AudioBlob || !task2AudioBlob || !task1Context || !task2Context) { showToast("Что-то пошло не так, попробуй ещё раз"); return; }
   showStep("grading");
@@ -800,7 +801,9 @@ function renderResults(grade) {
   ringFg.setAttribute("stroke-dasharray", circumference.toFixed(1));
   setTimeout(function(){ ringFg.style.strokeDashoffset = offset.toFixed(1); }, 60);
   $("#scoreRingNum").textContent = grade.totalScore;
-  $("#scoreBox").textContent = grade.totalScore + " / " + grade.totalMax;
+  const percent = grade.totalMax > 0 ? Math.round((grade.totalScore / grade.totalMax) * 100) : 0;
+  $("#scorePercentText").textContent = percent + "%";
+  $("#scoreBox").textContent = grade.totalScore + " / " + grade.totalMax + " (" + percent + "%)";
 
   $("#tooShortTask1Note").classList.toggle("hidden", !grade.tooShortTask1);
   if (grade.tooShortTask1) $("#tooShortTask1Note").textContent = "Запись 1. uzdevums была слишком короткой для честной оценки.";
