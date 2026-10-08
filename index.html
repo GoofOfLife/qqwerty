@@ -2493,6 +2493,7 @@ S.step--;
 renderStep(true);
 }
 $('btnBack').addEventListener('click', goBack);
+$('btnNext').addEventListener('click', goNext);
 
 /* ===================== Профили (localStorage) ===================== */
 const packSet = s => ({ n: s.n, v: s.v.slice(0, s.n), aim: s.aim.slice(0, 6), rot: (s.rot || []).slice(0, 6), mode: s.mode, markM: s.markM, steps: s.steps.slice(0, 5), meters: s.meters.slice(0, 5) });
@@ -3391,4 +3392,4 @@ vdLoad(); // детектор машин грузится в фоне; пока 
 
 </script>
 </body>
-</html>
+ </html>
