@@ -3443,7 +3443,7 @@ function init() {
 /* ==== DBG:BEGIN — DEBUG-инструмент. Только читает состояние конвейера и пишет журнал; CONFIG, пороги и решения не меняет. ==== */
 const dr3 = x => (typeof x !== 'number' || !isFinite(x)) ? null : Math.round(x * 1000) / 1000;
 const DBG = {
-  on: true, acc: 0, errs: [],
+  on: true, acc: 0, errs: [], BUILD: 'evl-fix 08.10',
   CAP: { ev: 80000, fr: 300000, bl: 300000, tk: 400000, dt: 100000, cd: 100000, rows: 30000 },
   BINS: [[0, 60, '<60'], [60, 100, '60-100'], [100, 130, '100-130'], [130, 160, '130-160'], [160, 1e9, '160+']],
   COLS: {
@@ -3453,10 +3453,16 @@ const DBG = {
     dt: ['t', 'cls', 'score', 'x0', 'y0', 'x1', 'y1', 'lane', 'inZone', 'dv'],
     cd: ['t', 'lane', 'area', 'w', 'h', 'fill', 'wPctLane', 'yb', 'failedFilters', 'outcome', 'detCls', 'detScore', 'detOverlap', 'dv']
   },
-  reset() { Object.assign(this, { ev: [], fr: [], bl: [], tk: [], dt: [], cd: [], rows: [], T: {}, DV: new Map(), nDv: 0, sk: { init: 0, lost: 0, coast: 0 }, cur: [], vidSec: 0, lastT: null, lastSt: null, nFr: 0, mg: { gap: 0, det: 0 }, cl: 0, nCap: 0, nDetCalls: 0, hookMs: 0 }); },
+  // reset() ставит только ДАННЫЕ и никогда не затирает метод. Массив событий называется evl, потому что ev() — метод-хук трекера.
+  // Если ключ всё же совпал с именем метода — он пропускается и пишется в errs (на панели будет «ERR n»), а хук остаётся рабочим.
+  reset() {
+    const s = { evl: [], fr: [], bl: [], tk: [], dt: [], cd: [], rows: [], T: {}, DV: new Map(), nDv: 0, sk: { init: 0, lost: 0, coast: 0 }, cur: [], vidSec: 0, lastT: null, lastSt: null, nFr: 0, mg: { gap: 0, det: 0 }, cl: 0, nCap: 0, nDetCalls: 0, hookMs: 0 };
+    for (const k of Object.keys(s)) if (typeof this[k] === 'function') { delete s[k]; this.fail('reset', new Error('ключ «' + k + '» совпал с именем метода DBG — не перезаписан')); }
+    Object.assign(this, s);
+  },
   take() { const a = this.acc; this.acc = 0; return a; },
   push(a, row, cap) { if (a.length < cap) a.push(row); else this.nCap++; },
-  evt(t, ev, tr, o) { this.push(this.ev, Object.assign({ t: dr3(t), ev, id: tr ? tr.id : null, lane: tr ? tr.lane : null }, o), this.CAP.ev); },
+  evt(t, ev, tr, o) { this.push(this.evl, Object.assign({ t: dr3(t), ev, id: tr ? tr.id : null, lane: tr ? tr.lane : null }, o), this.CAP.ev); },
   rec(tr) { return this.T[tr.id] || (this.T[tr.id] = { id: tr.id, lane: tr.lane, mEp: [], lsw: [], lost: [], votes: {}, dvs: new Set(), nDet: 0, nS: 0, nF: 0, maxSh: 0, maxSw: 0, sumSw: 0, nBad: 0, coast: 0, maxWp: 0, maxOv: 0, minFill: 9, minOwn: 9, maxA: 0, maxBw: 0, maxBh: 0, nFragB: 0, nXb: 0, nMg: 0, nShow: 0, kLo: 1e9, kHi: 0, maxSc: 0 }); },
   detOf(b) {   // чистая копия vdHit: лучшая рамка детектора по пересечению; в блоб ничего не пишет
     if (!VD.cal) return null;
@@ -3624,7 +3630,7 @@ const DBG = {
     const CL = ['car', 'truck', 'bus', 'other'], co = x => (x === 'car' || x === 'truck' || x === 'bus') ? x : 'other', veh = A.filter(r => r.confirmed || r.cls !== 'unknown'), cnt = (a, f) => a.filter(f).length;
     const bin = r => { const v = r.kmhBest; if (v == null) return 'n/a'; for (const [a, b, n] of this.BINS) if (v >= a && v < b) return n; return 'n/a'; };
     const mxt = (title, rows, cols, rk, ck) => { const ks = [...new Set(rows.map(rk))].sort((a, b) => cnt(rows, r => rk(r) === b) - cnt(rows, r => rk(r) === a)); L.push(title, pe('', 26) + cols.map(c => pd(c, 8)).join('') + pd('all', 8)); for (const k of ks) { const s = rows.filter(r => rk(r) === k); L.push(pe(k, 26) + cols.map(c => pd(cnt(s, r => ck(r) === c), 8)).join('') + pd(s.length, 8)); } if (!ks.length) L.push('  —'); L.push(''); };
-    L.push('=== DEBUG SUMMARY ===', 'video: ' + (S.fileName || S.srcKind || '—') + ' · ' + Math.round(this.vidSec) + ' s · frames ' + this.nFr + ' · detector ' + (vdGate() ? 'on' : 'OFF') + ' (calls ' + this.nDetCalls + ') · stab skipped init/lost/coast ' + this.sk.init + '/' + this.sk.lost + '/' + this.sk.coast + ' · hook overhead ' + Math.round(this.hookMs) + ' ms', '');
+    L.push('=== DEBUG SUMMARY · build ' + this.BUILD + ' ===', 'video: ' + (S.fileName || S.srcKind || '—') + ' · ' + Math.round(this.vidSec) + ' s · frames ' + this.nFr + ' · detector ' + (vdGate() ? 'on' : 'OFF') + ' (calls ' + this.nDetCalls + ') · stab skipped init/lost/coast ' + this.sk.init + '/' + this.sk.lost + '/' + this.sk.coast + ' · hook overhead ' + Math.round(this.hookMs) + ' ms', '');
     L.push('Воронка по «реальным машинам» (цепочки рамок детектора в зоне замера; приближённо):', pe('', 8) + ['vehicles', 'tracked', 'confirmed', 'shown', 'early', 'final', 'rejected', 'missed', 'open'].map(x => pd(x, 10)).join(''));
     for (const c of ['all'].concat(CL)) { const a = c === 'all' ? D : D.filter(d => co(d.cls) === c); L.push(pe(c, 8) + [a.length, cnt(a, d => d.tracked), cnt(a, d => d.confirmed), cnt(a, d => d.shown), cnt(a, d => d.early), cnt(a, d => d.final), cnt(a, d => d.res === 'REJECTED'), cnt(a, d => d.res === 'MISSED'), cnt(a, d => d.res === 'OPEN')].map(x => pd(x, 10)).join('')); }
     L.push('  (vehicles → tracked → confirmed → shown → early speed → final speed; rejected = tracked без итога; missed = ни одного трека; singles: ' + cnt(D, d => d.single) + ')', '', 'Воронка по трекам:', pe('', 8) + ['tracks', 'confirmed', 'shown', 'early', 'final', 'rejected'].map(x => pd(x, 10)).join(''));
@@ -3654,7 +3660,7 @@ const DBG = {
     const tab = k => ({ cols: this.COLS[k], rows: this[k] }), A = this.all();
     const o = { meta: { app: 'skorostemer DEBUG', date: new Date().toISOString(), video: S.fileName || S.srcKind, videoSecAnalysed: dr3(this.vidSec), frames: this.nFr, detector: vdGate(), config: { blob: CONFIG.blob, track: CONFIG.track, perf: CONFIG.perf, stab: CONFIG.stab }, profile: (() => { try { return profJson(); } catch (e) { return null; } })(),
       notes: 'tracks = forensic row на трек (fx — штатная строка приложения); vehicles = цепочки рамок детектора (приближённо) с флагами воронки; blobs.flags: usable=1 clipped=2 touching=4 soft=8 weak=16 detHit=32 refined=64 merged=128; detector.rows = рамки (с pad, координаты калибровки) на каждый вызов детектора; kmhA_st = регрессия s(t), kmhB_gate = скорость по воротам; hook overhead исключён из AUTO LOAD', capHits: this.nCap, errors: this.errs },
-    summaryText: this.text(), tracks: A, vehicles: this.dvRows(), events: this.ev, frames: tab('fr'), blobs: tab('bl'), trackFrames: tab('tk'), detector: tab('dt'), rejectedCandidates: tab('cd') };
+    summaryText: this.text(), tracks: A, vehicles: this.dvRows(), events: this.evl, frames: tab('fr'), blobs: tab('bl'), trackFrames: tab('tk'), detector: tab('dt'), rejectedCandidates: tab('cd') };
     this.dl('debug-' + Date.now() + '.json', JSON.stringify(o), 'application/json');
   },
   showSummary() {
@@ -3665,7 +3671,7 @@ const DBG = {
     if (!this.panel || this.panel.hidden) return;
     try { const h = $('hud'); if (h && !h.hidden) this.panel.style.top = (h.offsetHeight + 6) + 'px'; } catch (e) { }
     const D = this.dvRows(), T = Object.values(this.T), c = (a, f) => a.filter(f).length;
-    this.pre.textContent = 'DEBUG LOG · ' + Math.round(this.vidSec) + ' s\nveh ' + D.length + ' → trk ' + c(D, d => d.tracked) + ' → conf ' + c(D, d => d.confirmed) + ' → shown ' + c(D, d => d.shown) + ' → early ' + c(D, d => d.early) + ' → final ' + c(D, d => d.final) + '\nrejected ' + c(D, d => d.res === 'REJECTED') + ' · missed ' + c(D, d => d.res === 'MISSED') + ' · open ' + c(D, d => d.res === 'OPEN') + '\ntracks ' + T.length + ' · ended ' + c(T, k => k.ended) + ' · pass ' + c(T, k => k.pass) + '\nlog ev ' + this.ev.length + ' bl ' + this.bl.length + ' tk ' + this.tk.length + (this.nCap ? ' · CAP ' + this.nCap : '') + (this.errs.length ? ' · ERR ' + this.errs.length : '');
+    this.pre.textContent = 'DEBUG LOG · ' + Math.round(this.vidSec) + ' s · ' + this.BUILD + '\nveh ' + D.length + ' → trk ' + c(D, d => d.tracked) + ' → conf ' + c(D, d => d.confirmed) + ' → shown ' + c(D, d => d.shown) + ' → early ' + c(D, d => d.early) + ' → final ' + c(D, d => d.final) + '\nrejected ' + c(D, d => d.res === 'REJECTED') + ' · missed ' + c(D, d => d.res === 'MISSED') + ' · open ' + c(D, d => d.res === 'OPEN') + '\ntracks ' + T.length + ' · ended ' + c(T, k => k.ended) + ' · pass ' + c(T, k => k.pass) + '\nlog ev ' + this.evl.length + ' bl ' + this.bl.length + ' tk ' + this.tk.length + (this.nCap ? ' · CAP ' + this.nCap : '') + (this.errs.length ? ' · ERR ' + this.errs.length : '');
   },
   fail(n, e) { if (this.errs.length < 30) this.errs.push({ hook: n, msg: String(e && e.message || e), stack: String(e && e.stack || '').slice(0, 400), t: dr3(R.tNow) }); try { console.error('DBG', n, e); } catch (_) { } },
   guard() { for (const n of ['cand', 'own', 'merge', 'frag', 'dup', 'xb', 'det', 'skip', 'frame', 'ev']) { const f = this[n]; this[n] = (...a) => { const t0 = performance.now(); try { return f.apply(this, a); } catch (e) { this.fail(n, e); } finally { const d = performance.now() - t0; this.acc += d; this.hookMs += d; } }; } },
@@ -3688,4 +3694,5 @@ vdLoad();   // детектор машин грузится в фоне; пок�
 
 </script>
 </body>
- </html>
+</html>
+<!-- Всего строк в файле: 3698 (включая эту строку) -->
